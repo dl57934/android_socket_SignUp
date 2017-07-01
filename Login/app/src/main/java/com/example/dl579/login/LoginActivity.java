@@ -32,25 +32,25 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 import android.content.SharedPreferences;
+
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.Manifest.permission.PACKAGE_USAGE_STATS;
 import static android.Manifest.permission.READ_CONTACTS;
 
 /**
  * A login screen that offers login via email/password.
  */
 public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<Cursor> {
-
     /**
      * Id to identity READ_CONTACTS permission request.
      */
     private static final int REQUEST_READ_CONTACTS = 0;
-
     /**
      * A dummy authentication store containing known user names and passwords.
      * TODO: remove after connecting to a real authentication system.
@@ -64,49 +64,70 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
     private UserLoginTask mAuthTask = null;
 
     // UI references.
+    static String mung="";
     private AutoCompleteTextView mEmailView;
     private EditText mPasswordView;
     private View mProgressView;
     private View mLoginFormView;
-    Socket socket = null;
-    String Id = "",password="";
+    String Id = "", password = "";
     Send Login = null;
-    String IP = "192.168.43.229";
-    String Receive=null;
-    SharedPreferences test ;
+    SharedPreferences test;
     SharedPreferences.Editor editor;
+    Receive receive;
+    MySocket msocket ;
+    static Thread t1;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         final String m_androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-        // Set up the login form.
-                    mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
-                    populateAutoComplete();
-                    final Thread Connect = new Thread()
-                    {
-                        public void run()
-                        {
-                            try {
-                                test = getSharedPreferences("test", MODE_PRIVATE);
-                                editor  = test.edit();
-                                socket = new Socket(IP, 9900);
-                                Log.e("Log :",Build.SERIAL);
-                                Log.e("Log :",test.getString("Id",""));
-                                Log.e("Log :",test.getString("Password",""));
-                    if(!test.getString("Id","").equals("")&& !test.getString("Password","").equals(""))
-                    {
-                        Login = new Send(socket,test.getString("Id",""),test.getString("Password",""),m_androidId);
+        // Set up the login form.msocket = MySocket.getInstance();
+        mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
+
+        populateAutoComplete();
+
+        final Thread Connect = new Thread() {
+            public void run() {
+                try {
+                    test = getSharedPreferences("test", MODE_PRIVATE);
+                    editor = test.edit();
+                    msocket = MySocket.getInstance();
+                    Log.e("Log :", m_androidId);
+                    Log.e("Log :", Build.SERIAL);
+                    Log.e("Log :", test.getString("Id", ""));
+                    Log.e("Log :", test.getString("Password", ""));
+                    receive = new Receive(msocket.socket);
+                    receive.start();
+                    if (!test.getString("Id", "").equals("") && !test.getString("Password", "").equals("")) {
+                        Login = new Send(msocket.socket, test.getString("Id", ""), test.getString("Password", ""), m_androidId);
                         Login.start();
+
                     }
-                }
-                catch(Exception e)
-                {
+
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
         };
+         t1 = new Thread(new Runnable() {
+                @Override
+                public void run() {
+
+                        if (mung.equals("200")) {
+                            Log.e("Log e",mung);
+                           Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                            startActivity(intent);
+                            finish();
+                        } else {
+                        Log.e("실행 ","XX");
+                        }
+
+                }
+            });
+
+
+
+        Connect.start();
         mPasswordView = (EditText) findViewById(R.id.password);
         mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
@@ -119,54 +140,32 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             }
         });
 //200성공 400실패
-        Connect.start();
+
         final Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
         mEmailSignInButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-
-
                 Id = mEmailView.getText().toString();
                 password = mPasswordView.getText().toString();
                 editor = test.edit();
-                editor.putString("Id",Id);
-                editor.putString("Password",password);
+                editor.putString("Id", Id);
+                editor.putString("Password", password);
                 editor.commit();
-                Log.e("Login Id = ",test.getString("Id",""));
-                Log.e("Login Pqssword = ",test.getString("Password",""));
-                Login = new Send(socket,test.getString("Id",""),test.getString("Password",""),m_androidId);
+                Log.e("Login Id = ", test.getString("Id", ""));
+                Log.e("Login Pqssword = ", test.getString("Password", ""));
+                Login = new Send(msocket.socket, test.getString("Id", ""), test.getString("Password", ""), m_androidId);
                 Login.start();
-               // attemptLogin();
+                // attemptLogin();
             }
         });
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-                        DataInputStream dataInputStream = null;
-                        dataInputStream= new DataInputStream(socket.getInputStream());
-                        byte arr[] = new byte[4096];
-                        int range = dataInputStream.read(arr);
-                        byte arr2[] = new byte[range];
-                        System.arraycopy(arr, 0, arr2, 0, range);
-                        Receive = new String(arr2, "UTF-8");
-                        Log.e("Log: ",Receive);
-                        JSONObject jsonObject = new JSONObject(Receive);
-                        Log.e("Log: ", ""+jsonObject.getInt("code"));
-                        if(jsonObject.getInt("code") == 200)
-                        {
-                            Intent intent = new Intent(LoginActivity.this,MainActivity.class);//이동 전과 이동 후
-                            startActivity(intent);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }).start();
+        try {
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
     }
 
     private void populateAutoComplete() {
@@ -198,6 +197,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
         }
         return false;
     }
+
     /**
      * Callback received when a permissions request has been completed.
      */
@@ -210,6 +210,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             }
         }
     }
+
     /**
      * Attempts to sign in or register the account specified by the login form.
      * If there are form errors (invalid email, missing fields, etc.), the
@@ -419,45 +420,68 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
 
 }
-
-
-
 class Send extends Thread {
-    Socket socket = null;
-    DataOutputStream out = null;
-    TextView Id;
-    TextView password;
+    Socket socket ;
     String IdText;
     String passwordText;
-    String msg1="";
-    int check = 0;
+    String msg1 ;
+    DataOutputStream out;
     public Send(Socket socket, String Idtext,String passwordtext,String msg) {
         try {
             this.msg1 = msg;
             this.socket = socket;
             this.IdText = Idtext;
             this.passwordText = passwordtext;
-            out = new DataOutputStream(this.socket.getOutputStream());
-            check =0;
-        } catch (IOException e) {
+        }
+        catch(Exception e)
+        {
             e.printStackTrace();
         }
     }
     public void run() {
         try {
+            out = new DataOutputStream(socket.getOutputStream());
                 JSONObject jobj = new JSONObject();
                 jobj.put("type", "login");
                 jobj.put("user_id", IdText);
                 jobj.put("user_pwd", passwordText);
                 jobj.put("device_name",msg1);
                 jobj.put("device_serial", Build.SERIAL);
-            jobj.put("device_model", Build.MODEL);
+                jobj.put("device_model", Build.MODEL);
             out.write(jobj.toString().getBytes("UTF-8"));
         } catch (Exception e) {
             e.printStackTrace();
         }
-
+    }
+}
+class Receive extends Thread
+{
+    String receiveMessage;
+    Socket socket;
+    public  Receive(Socket socket)
+    {
+        this.socket = socket;
     }
 
-
+    public void run() {
+        while(true) {
+            try {
+                DataInputStream dataInputStream;
+                dataInputStream = new DataInputStream(socket.getInputStream());
+                byte arr[] = new byte[4096];
+                int range = dataInputStream.read(arr);
+                byte arr2[] = new byte[range];
+                System.arraycopy(arr, 0, arr2, 0, range);
+                receiveMessage = new String(arr2, "UTF-8");
+                LoginActivity.mung = receiveMessage;
+                LoginActivity.t1.start();
+                /*JSONObject jsonObject = new JSONObject(receiveMessage);
+                Log.e("Log: ", ""+jsonObject.getInt("code"));*/
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
 }
+
+
